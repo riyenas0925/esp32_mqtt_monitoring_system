@@ -1,4 +1,6 @@
 from time import sleep
+from dht import DHT11
+from machine import Pin, SoftI2C
 from umqtt.simple import MQTTClient
 
 # Wi-Fi config
@@ -38,14 +40,20 @@ def main():
     client = MQTTClient(mqtt_client_id, mqtt_server_host)
     client.connect()
 
+    # init dht11 Temperature, Humidity sensor
+    dht11 = DHT11(Pin(9))
+
     # publish message
     while True:
         try:
             sleep(10)
 
+            # measure temp and humidity
+            dht11.measure()
+            humidity = dht11.humidity()
+            temperature = dht11.temperature()
+
             # dummy data
-            humidity = 50.0
-            temperature = 36.5
             lux = 1000
 
             json = b'{"id": %u, "humidity": %.1f, "temperature": %.1f, "lux": %.1f}' % (1, humidity, temperature, lux)
