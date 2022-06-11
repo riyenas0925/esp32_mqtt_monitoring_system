@@ -6,15 +6,21 @@ from neopixel import NeoPixel
 from uos import uname
 from usys import platform, implementation
 from esp import flash_size
+from json import loads
 
 # Wi-Fi config
-wifi_ssid = "iPhone"
+wifi_ssid = "mini"
 wifi_password = "testmqtt"
 
 # mqtt config
 mqtt_server_host = "rabbitmq.riyenas.dev"
 mqtt_client_id = "mqtt_client"
-mqtt_topic = b"sensors/1"
+mqtt_publish_topic = b"sensors/1/status"
+mqtt_subscribe_topic = b"sensors/1/led"
+
+# led default color
+led_color = 'W'
+led_state = True
 
 
 def print_info():
@@ -55,6 +61,31 @@ def connect():
     print(station.ifconfig())
 
 
+def change_led_color(brightness):
+    if not led_state:
+        return 0, 0, 0
+
+    if led_color == "R":
+        return brightness, 0, 0
+    if led_color == "G":
+        return 0, brightness, 0
+    if led_color == "B":
+        return 0, 0, brightness
+    if led_color == "W":
+        return brightness, brightness, brightness
+
+
+def sub_cb(topic, msg):
+    global led_color, led_state
+
+    jsonObject = loads(msg.decode())
+    led_color = jsonObject.get("color")
+    led_state = jsonObject.get("state")
+
+    print(topic, msg)
+    print("Change led color to " + led_color)
+
+
 def main():
     # connect Wi-Fi network
     connect()
@@ -64,6 +95,7 @@ def main():
 
     # connect mqtt broker
     client = MQTTClient(mqtt_client_id, mqtt_server_host)
+    client.set_callback(sub_cb)
     client.connect()
 
     # init dht11 Temperature, Humidity sensor
@@ -90,6 +122,10 @@ def main():
     i2c.writeto(bh1750_address, bytes([bh1750_reset]))
     i2c.writeto(bh1750_address, bytes([continuous_high_res_mode_2]))
 
+    # subscribe topic
+    client.subscribe(mqtt_subscribe_topic)
+    print("Subscribed to %s topic" % mqtt_subscribe_topic)
+
     # publish message
     while True:
         try:
@@ -108,16 +144,21 @@ def main():
             weight = 325
             brightness = int(255 - lux * (255 / 65535 * weight))
             brightness = brightness if brightness >= 0 else 0
-            np[0] = (brightness, brightness, brightness)
+            np[0] = change_led_color(brightness)
             np.write()
 
             # measure soil moisture
             soil_moisture = 1 if soil_moisture_sensor.value() else 0
 
-            json = b'{"id": %u, "humidity": %.1f, "temperature": %.1f, "lux": %.1f, "brightness": %d, "isBarren": %d}' % (1, humidity, temperature, lux, brightness, soil_moisture)
+            # publish message
+            json = b'{"id": %u, "humidity": %.1f, "temperature": %.1f, "lux": %.1f, "brightness": %d, "isBarren": %d}' % (
+                1, humidity, temperature, lux, brightness, soil_moisture)
 
-            client.publish(mqtt_topic, json)
-            print(mqtt_topic, json)
+            client.publish(mqtt_publish_topic, json)
+            print(mqtt_publish_topic, json)
+
+            # subscribe message
+            client.check_msg()
 
             sleep(30)
 
