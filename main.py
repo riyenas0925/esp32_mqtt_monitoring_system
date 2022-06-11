@@ -1,7 +1,11 @@
 from time import sleep, sleep_ms
 from dht import DHT11
-from machine import Pin, SoftI2C
+from machine import Pin, SoftI2C, freq
 from umqtt.simple import MQTTClient
+from neopixel import NeoPixel
+from uos import uname
+from usys import platform, implementation
+from esp import flash_size
 
 # Wi-Fi config
 wifi_ssid = "iPhone"
@@ -11,6 +15,25 @@ wifi_password = "testmqtt"
 mqtt_server_host = "rabbitmq.riyenas.dev"
 mqtt_client_id = "mqtt_client"
 mqtt_topic = b"sensors/1"
+
+
+def print_info():
+    print("from uos.uname():")
+    for u in uname():
+        print(u)
+    print()
+
+    print("from usys:")
+    print("usys.platform: ", platform)
+    print("usys.implementation: ", implementation)
+    print()
+
+    print("====================================")
+    print(implementation[0], uname()[3],
+          "\nrun on", uname()[4])
+    print("====================================")
+    print("Flash size:", flash_size())
+    print("CPU frequency:", freq(), "(Hz)")
 
 
 def connect():
@@ -36,6 +59,9 @@ def main():
     # connect Wi-Fi network
     connect()
 
+    # print info
+    print_info()
+
     # connect mqtt broker
     client = MQTTClient(mqtt_client_id, mqtt_server_host)
     client.connect()
@@ -49,6 +75,9 @@ def main():
     bh1750_power_on = 0x01
     bh1750_reset = 0x07
     continuous_high_res_mode_2 = 0x11
+
+    # init led
+    np = NeoPixel(Pin(8), 1)
 
     # Soil Moisture Sensor Init
     soil_moisture_sensor = Pin(4, Pin.IN, Pin.PULL_DOWN)
@@ -75,10 +104,17 @@ def main():
             factor = 2.0
             lux = (data[0] << 8 | data[1]) / (1.2 * factor)
 
+            # calc brightness
+            weight = 325
+            brightness = int(255 - lux * (255 / 65535 * weight))
+            brightness = brightness if brightness >= 0 else 0
+            np[0] = (brightness, brightness, brightness)
+            np.write()
+
             # measure soil moisture
             soil_moisture = 1 if soil_moisture_sensor.value() else 0
 
-            json = b'{"id": %u, "humidity": %.1f, "temperature": %.1f, "lux": %.1f,"isBarren": %f}' % (1, humidity, temperature, lux, soil_moisture)
+            json = b'{"id": %u, "humidity": %.1f, "temperature": %.1f, "lux": %.1f, "brightness": %d, "isBarren": %d}' % (1, humidity, temperature, lux, brightness, soil_moisture)
 
             client.publish(mqtt_topic, json)
             print(mqtt_topic, json)
@@ -87,6 +123,7 @@ def main():
 
         except OSError as e:
             print("error: {0}".format(e))
+            main()
 
     client.disconnect()
 
