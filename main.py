@@ -50,6 +50,9 @@ def main():
     bh1750_reset = 0x07
     continuous_high_res_mode_2 = 0x11
 
+    # Soil Moisture Sensor Init
+    soil_moisture_sensor = Pin(4, Pin.IN, Pin.PULL_DOWN)
+
     i2c = SoftI2C(scl=Pin(0), sda=Pin(1), freq=400000)
 
     # init bh1750
@@ -72,7 +75,10 @@ def main():
             factor = 2.0
             lux = (data[0] << 8 | data[1]) / (1.2 * factor)
 
-            json = b'{"id": %u, "humidity": %.1f, "temperature": %.1f, "lux": %.1f}' % (1, humidity, temperature, lux)
+            # measure soil moisture
+            soil_moisture = 1 if soil_moisture_sensor.value() else 0
+
+            json = b'{"id": %u, "humidity": %.1f, "temperature": %.1f, "lux": %.1f,"isBarren": %f}' % (1, humidity, temperature, lux, soil_moisture)
 
             client.publish(mqtt_topic, json)
             print(mqtt_topic, json)
