@@ -67,11 +67,13 @@ def change_led_color(brightness):
 
     if led_color == "R":
         return brightness, 0, 0
-    if led_color == "G":
+    elif led_color == "G":
         return 0, brightness, 0
-    if led_color == "B":
+    elif led_color == "B":
         return 0, 0, brightness
-    if led_color == "W":
+    elif led_color == "W":
+        return brightness, brightness, brightness
+    else:
         return brightness, brightness, brightness
 
 
