@@ -130,46 +130,47 @@ def main():
 
     # publish message
     while True:
-        try:
-            # measure temp and humidity
-            dht11.measure()
-            humidity = dht11.humidity()
-            temperature = dht11.temperature()
+        # measure temp and humidity
+        dht11.measure()
+        humidity = dht11.humidity()
+        temperature = dht11.temperature()
 
-            # measure lux
-            sleep_ms(120)
-            data = i2c.readfrom(bh1750_address, 2)
-            factor = 2.0
-            lux = (data[0] << 8 | data[1]) / (1.2 * factor)
+        # measure lux
+        sleep_ms(120)
+        data = i2c.readfrom(bh1750_address, 2)
+        factor = 2.0
+        lux = (data[0] << 8 | data[1]) / (1.2 * factor)
 
-            # calc brightness
-            weight = 325
-            brightness = int(255 - lux * (255 / 65535 * weight))
-            brightness = brightness if brightness >= 0 else 0
-            np[0] = change_led_color(brightness)
-            np.write()
+        # calc brightness
+        weight = 325
+        brightness = int(255 - lux * (255 / 65535 * weight))
+        brightness = brightness if brightness >= 0 else 0
+        np[0] = change_led_color(brightness)
+        np.write()
 
-            # measure soil moisture
-            soil_moisture = 1 if soil_moisture_sensor.value() else 0
+        # measure soil moisture
+        soil_moisture = 1 if soil_moisture_sensor.value() else 0
 
-            # publish message
-            json = b'{"id": %u, "humidity": %.1f, "temperature": %.1f, "lux": %.1f, "brightness": %d, "isBarren": %d}' % (
-                1, humidity, temperature, lux, brightness, soil_moisture)
+        # publish message
+        json = b'{"id": %u, "humidity": %.1f, "temperature": %.1f, "lux": %.1f, "brightness": %d, "isBarren": %d}' % (
+            1, humidity, temperature, lux, brightness, soil_moisture)
 
-            client.publish(mqtt_publish_topic, json)
-            print(mqtt_publish_topic, json)
+        client.publish(mqtt_publish_topic, json)
+        print(mqtt_publish_topic, json)
 
-            # subscribe message
-            client.check_msg()
+        # subscribe message
+        client.check_msg()
 
-            sleep(30)
-
-        except OSError as e:
-            print("error: {0}".format(e))
-            main()
-
-    client.disconnect()
+        sleep(30)
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+
+    except OSError as e:
+        print("error: {0}".format(e))
+        main()
+
+    else:
+        main()
